@@ -230,20 +230,18 @@ export class TownScene extends Phaser.Scene {
 
   private createBuildingZones() {
     for (const building of BUILDINGS) {
-      // Interaction zone: 1 tile in front of building door
-      const doorTileX = building.tilePosition.x + Math.floor(3);
-      const doorTileY = building.tilePosition.y + 3; // one tile below building bottom
-      const x = doorTileX * TILE + TILE / 2;
-      const y = doorTileY * TILE + TILE / 2;
+      // Door is at tilePosition.x+2 (center of 4-wide building), one tile below bottom
+      const doorWorldX = (building.tilePosition.x + 2) * TILE + TILE / 2;
+      const doorWorldY = (building.tilePosition.y + 4) * TILE + TILE / 2;
 
-      const zone = this.add.zone(x + TILE, y + TILE, TILE * 2, TILE * 2);
+      const zone = this.add.zone(doorWorldX, doorWorldY, TILE * 3, TILE * 3);
       this.physics.add.existing(zone, true);
       zone.setData('buildingId', building.id);
       zone.setData('type', 'building');
       this.buildingZones.set(building.id, zone);
 
-      // "!" text (hidden initially)
-      const excText = this.add.text(x + TILE, y - 4, '!', {
+      // "!" text above door (hidden initially)
+      const excText = this.add.text(doorWorldX, doorWorldY - TILE - 4, '!', {
         fontSize: '12px',
         color: '#FFE040',
         fontFamily: '"Press Start 2P", monospace',
@@ -295,22 +293,21 @@ export class TownScene extends Phaser.Scene {
         zone.x,
         zone.y
       );
-      if (dist < 32) {
+      if (dist < 40) {
         foundNearby = id;
         break;
       }
     }
 
     if (foundNearby !== this.activeNearby) {
-      // Hide old
+      // Hide old mark
       if (this.activeNearby) {
-        const buildingId = this.activeNearby.replace('npc_', '');
-        this.exclamationMarks.get(buildingId)?.setVisible(false);
+        this.exclamationMarks.get(this.activeNearby)?.setVisible(false);
+        this.tweens.killTweensOf(this.exclamationMarks.get(this.activeNearby)!);
       }
-      // Show new
+      // Show new mark
       if (foundNearby) {
-        const buildingId = foundNearby.replace('npc_', '');
-        const mark = this.exclamationMarks.get(buildingId);
+        const mark = this.exclamationMarks.get(foundNearby);
         if (mark) {
           mark.setVisible(true);
           this.tweens.add({
