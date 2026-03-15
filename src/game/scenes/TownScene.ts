@@ -6,7 +6,8 @@ const TILE = 16;
 const MAP_W = 20;
 const MAP_H = 20;
 const CAMERA_ZOOM = 3;
-const INTERACT_RADIUS = 44;
+const INTERACT_RADIUS = 72;   // show "!" within this world-px distance
+const AUTO_ENTER_RADIUS = 24; // walk-in auto-open (no key press needed)
 
 interface BuildingDef {
   id: string;
@@ -141,12 +142,13 @@ export class TownScene extends Phaser.Scene {
   }
 
   private drawPond(g: Phaser.GameObjects.Graphics) {
-    for (let row = 6; row <= 9; row++) {
+    // Pond moved to rows 10–13 so Pupi Center's south entrance is unobstructed
+    for (let row = 10; row <= 13; row++) {
       for (let col = 2; col <= 6; col++) {
         const x = col * TILE;
         const y = row * TILE;
-        const edge = row === 6 || col === 2;
-        g.fillStyle(edge ? 0x2070B8 : (row === 9 || col === 6) ? 0x48A8E0 : 0x3898D8);
+        const edge = row === 10 || col === 2;
+        g.fillStyle(edge ? 0x2070B8 : (row === 13 || col === 6) ? 0x48A8E0 : 0x3898D8);
         g.fillRect(x, y, TILE, TILE);
         if ((row + col) % 2 === 0) {
           g.fillStyle(0x60C0F0);
@@ -159,26 +161,26 @@ export class TownScene extends Phaser.Scene {
     // Sandy rim
     g.fillStyle(0xB89840);
     for (let col = 2; col <= 6; col++) {
-      g.fillRect(col * TILE, 5 * TILE + 13, TILE, 3);
-      g.fillRect(col * TILE, 10 * TILE, TILE, 3);
+      g.fillRect(col * TILE, 9 * TILE + 13, TILE, 3);
+      g.fillRect(col * TILE, 14 * TILE, TILE, 3);
     }
-    for (let row = 6; row <= 9; row++) {
+    for (let row = 10; row <= 13; row++) {
       g.fillRect(TILE + 13, row * TILE, 3, TILE);
       g.fillRect(7 * TILE, row * TILE, 3, TILE);
     }
 
-    // Fence posts and top rail
+    // Fence posts and rails
     const post = 0x7A4E1A;
     const rail = 0xAA7030;
     for (let col = 1; col <= 7; col++) {
       const px = col * TILE + 6;
       g.fillStyle(post);
-      g.fillRect(px, 5 * TILE + 8, 4, 10);
-      g.fillRect(px, 10 * TILE - 2, 4, 10);
+      g.fillRect(px, 9 * TILE + 8, 4, 10);
+      g.fillRect(px, 14 * TILE - 2, 4, 10);
     }
     g.fillStyle(rail);
-    g.fillRect(TILE + 8, 5 * TILE + 11, 7 * TILE - 8, 2);
-    g.fillRect(TILE + 8, 10 * TILE + 1, 7 * TILE - 8, 2);
+    g.fillRect(TILE + 8, 9 * TILE + 11, 7 * TILE - 8, 2);
+    g.fillRect(TILE + 8, 14 * TILE + 1, 7 * TILE - 8, 2);
   }
 
   private drawFlowers(g: Phaser.GameObjects.Graphics) {
@@ -368,14 +370,15 @@ export class TownScene extends Phaser.Scene {
       const bd = this.getBuildingDefs().find((b) => b.id === building.id);
       if (!bd) continue;
 
-      // Door center at building's bottom edge
+      // Door center — one tile south of building bottom so auto-enter fires
+      // before the player hits the building blocker
       const doorX = bd.doorTx * TILE + TILE / 2;
-      const doorY = (bd.ty + bd.th) * TILE;
+      const doorY = (bd.ty + bd.th) * TILE + TILE;
       this.doorPoints.push({ id: building.id, x: doorX, y: doorY });
 
       // "!" bobbing indicator
       const markX = doorX;
-      const markY = doorY - TILE * 2 - 2;
+      const markY = doorY - TILE * 3 - 2; // above the door, not inside building
       const excText = this.add
         .text(markX, markY, '!', {
           fontSize: '12px',
@@ -448,6 +451,18 @@ export class TownScene extends Phaser.Scene {
     this.interactCooldown = Math.max(0, this.interactCooldown - delta);
     this.checkNearby();
 
+    // Auto-enter: walk up to a door and it opens automatically (Pokémon style)
+    if (this.interactCooldown === 0) {
+      for (const dp of this.doorPoints) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, dp.x, dp.y);
+        if (d < AUTO_ENTER_RADIUS) {
+          this.openBuilding(dp.id);
+          return;
+        }
+      }
+    }
+
+    // SPACE / Enter fallback
     if (
       this.interactCooldown === 0 &&
       (Phaser.Input.Keyboard.JustDown(this.spaceKey) ||
